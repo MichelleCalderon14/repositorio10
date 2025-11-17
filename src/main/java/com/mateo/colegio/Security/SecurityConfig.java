@@ -21,26 +21,47 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            // Sin sesión y sin CSRF (API REST con JWT)
+            // API REST con JWT: sin sesión y sin CSRF
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                // 🔓 Endpoints públicos
-                .requestMatchers("/error").permitAll()
-                .requestMatchers(HttpMethod.POST,
-                        "/api/auth/login",   // login nuevo
-                        "/api/login"         // (opcional) login antiguo, por si acaso
+                // ====== ENDPOINTS PÚBLICOS ======
+
+                // Swagger / OpenAPI (con tus paths personalizados)
+                .requestMatchers(
+                        "/swagger",
+                        "/swagger/**",
+                        "/api-docs",
+                        "/api-docs/**",
+                        "/v3/api-docs",
+                        "/v3/api-docs/**",
+                        "/swagger-ui.html",
+                        "/swagger-ui/**"
                 ).permitAll()
 
-                // 🔐 Solo ADMIN puede gestionar roles y usuarios
+                // Preflight CORS (Angular, navegador, etc.)
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                // Login (para obtener el JWT)
+                .requestMatchers(HttpMethod.POST,
+                        "/api/auth/login",
+                        "/api/login"
+                ).permitAll()
+
+                // Error
+                .requestMatchers("/error").permitAll()
+
+                // ====== ENDPOINTS PROTEGIDOS ======
+
+                // Solo ADMIN puede gestionar roles y usuarios
                 .requestMatchers("/api/roles/**", "/api/usuarios/**")
                     .hasRole("ADMIN")
 
-                // 🔐 ADMIN y DOCENTE pueden usar /api/docentes y /api/notas
+                // ADMIN y DOCENTE pueden usar /api/docentes y /api/notas
                 .requestMatchers("/api/docentes/**", "/api/notas/**")
                     .hasAnyRole("ADMIN", "DOCENTE")
 
-                // 🔐 Cualquier otra cosa requiere estar autenticado
+                // Cualquier otra cosa necesita estar autenticado
                 .anyRequest().authenticated()
             );
 
