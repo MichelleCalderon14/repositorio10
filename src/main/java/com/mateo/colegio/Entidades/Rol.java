@@ -1,14 +1,18 @@
 package com.mateo.colegio.Entidades;
 
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.Data;
 
-@Entity @Table(name="rol")
-@Data @NoArgsConstructor @AllArgsConstructor @Builder
+@Data
+@Entity
+@Table(name = "rol")
 public class Rol {
-    @Id @GeneratedValue(strategy=GenerationType.IDENTITY)
-    private Integer id_rol;
 
-    @Column(nullable=false, unique=true, length=30)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_rol")
+    private Integer idRol;
+
+    @Column(nullable = false, length = 50)
     private String nombre;
 }
