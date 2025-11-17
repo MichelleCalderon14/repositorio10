@@ -1,22 +1,29 @@
+// src/main/java/com/mateo/colegio/Entidades/Nota.java
 package com.mateo.colegio.Entidades;
 
 import jakarta.persistence.*;
-import lombok.*;
-import java.math.BigDecimal;
+import lombok.Getter;
+import lombok.Setter;
 
-@Entity @Table(name="nota",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"id_evaluacion","id_alumno"}))
-@Data @NoArgsConstructor @AllArgsConstructor @Builder
+@Entity
+@Getter
+@Setter
 public class Nota {
-    @Id @GeneratedValue(strategy=GenerationType.IDENTITY)
-    private Integer id_nota;
 
-    @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="id_evaluacion", nullable=false)
-    private Evaluacion evaluacion;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer idNota;
 
-    @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="id_alumno", nullable=false)
+    @ManyToOne
+    @JoinColumn(name = "id_alumno")
     private Alumno alumno;
 
-    @Column(nullable=false, precision=6, scale=2)
-    private BigDecimal puntaje;
+    @ManyToOne
+    @JoinColumn(name = "id_docente")
+    private Docente docente;
+
+    private String materia;
+    private Double parcial1;
+    private Double parcial2;
+    private Double examenFinal;
 }

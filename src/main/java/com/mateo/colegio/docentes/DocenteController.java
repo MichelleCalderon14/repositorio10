@@ -1,117 +1,105 @@
 package com.mateo.colegio.docentes;
 
+import com.mateo.colegio.Dto.DocenteRegistroDto;
+import com.mateo.colegio.Entidades.Alumno;
+import com.mateo.colegio.Entidades.Docente;
+import com.mateo.colegio.Entidades.Usuario;
+import com.mateo.colegio.Entidades.Rol;
+import com.mateo.colegio.Repositorios.AlumnoRepositorio;
+import com.mateo.colegio.Repositorios.UsuarioRepositorio;
+import com.mateo.colegio.Repositorios.RolRepositorio;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/docentes")
+@RequiredArgsConstructor
 public class DocenteController {
 
-    private final DocentePerfilRepository docenteRepo;
-    private final FormacionAcademicaRepository formacionRepo;
-    private final ExperienciaProfesionalRepository experienciaRepo;
-    private final ReconocimientoRepository reconocimientoRepo;
+    private final DocenteRepository docenteRepository;
+    private final DocentePerfilRepository docentePerfilRepository;
+    private final AlumnoRepositorio alumnoRepositorio;
 
-    public DocenteController(
-            DocentePerfilRepository d,
-            FormacionAcademicaRepository f,
-            ExperienciaProfesionalRepository e,
-            ReconocimientoRepository r
-    ) {
-        this.docenteRepo = d;
-        this.formacionRepo = f;
-        this.experienciaRepo = e;
-        this.reconocimientoRepo = r;
-    }
+    private final UsuarioRepositorio usuarioRepositorio;
+    private final RolRepositorio rolRepositorio;
+    private final PasswordEncoder passwordEncoder;
 
-    // -------- CRUD DocentePerfil --------
+    // ================= DOCENTES =================
+
     @GetMapping
-    public List<DocentePerfil> listar() {
-        return docenteRepo.findAll();
+    public List<Docente> listar() {
+        return docenteRepository.findAll();
     }
 
+    // Crear Docente + Perfil + Usuario (para login)
     @PostMapping
-    public ResponseEntity<DocentePerfil> crear(@RequestBody DocentePerfil body) {
-        return ResponseEntity.ok(docenteRepo.save(body));
+    public ResponseEntity<Docente> crear(@RequestBody DocenteRegistroDto dto) {
+
+        // 1) Guardar el DOCENTE
+        Docente docente = Docente.builder()
+                .cedula(dto.getCedula())
+                .nombres(dto.getNombres())
+                .apellidos(dto.getApellidos())
+                .email(dto.getEmail())
+                .build();
+
+        Docente guardado = docenteRepository.save(docente);
+
+        // 2) Crear perfil automático
+        DocentePerfil perfil = new DocentePerfil();
+        perfil.setNombreCompleto(guardado.getNombres() + " " + guardado.getApellidos());
+        perfil.setCargo("DOCENTE");
+        perfil.setArea(null);
+        perfil.setAniosExperiencia(null);
+        perfil.setFotografiaUrl(null);
+
+        docentePerfilRepository.save(perfil);
+
+        // 3) Crear usuario para login con rol DOCENTE
+        Rol rolDocente = rolRepositorio.findByNombre("DOCENTE")
+                .orElseThrow(() -> new RuntimeException("Rol DOCENTE no encontrado"));
+
+        Usuario usuario = new Usuario();
+        usuario.setUsername(dto.getUsername());
+        usuario.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
+        usuario.setEmail(dto.getEmail());
+        usuario.setActivo(true);
+        usuario.setRol(rolDocente);
+
+        usuarioRepositorio.save(usuario);
+
+        return ResponseEntity.ok(guardado);
     }
 
-    @GetMapping("/{id}")
-    public DocentePerfil get(@PathVariable Long id) {
-        return docenteRepo.findById(id).orElseThrow();
+    // ================= ALUMNOS POR DOCENTE =================
+
+    // 1) Crear alumno para un docente específico
+    @PostMapping("/{idDocente}/alumnos")
+    public ResponseEntity<Alumno> crearAlumnoParaDocente(
+            @PathVariable("idDocente") Integer idDocente,
+            @RequestBody Alumno alumno) {
+
+        Docente docente = docenteRepository.findById(idDocente)
+                .orElseThrow(() -> new RuntimeException("Docente no encontrado"));
+
+        alumno.setDocente(docente);
+        Alumno guardado = alumnoRepositorio.save(alumno);
+        return ResponseEntity.ok(guardado);
     }
 
-    @PutMapping("/{id}")
-    public DocentePerfil update(@PathVariable Long id, @RequestBody DocentePerfil body) {
-        DocentePerfil d = docenteRepo.findById(id).orElseThrow();
-        d.setNombreCompleto(body.getNombreCompleto());
-        d.setFotografiaUrl(body.getFotografiaUrl());
-        d.setCargo(body.getCargo());
-        d.setArea(body.getArea());
-        d.setAniosExperiencia(body.getAniosExperiencia());
-        return docenteRepo.save(d);
-    }
+    // 2) Listar alumnos de un docente específico
+    @GetMapping("/{idDocente}/alumnos")
+    public ResponseEntity<List<Alumno>> listarAlumnosDeDocente(
+            @PathVariable("idDocente") Integer idDocente) {
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        docenteRepo.deleteById(id);
-        return ResponseEntity.noContent().build();
-    }
+        Docente docente = docenteRepository.findById(idDocente)
+                .orElseThrow(() -> new RuntimeException("Docente no encontrado"));
 
-    // -------- Subrecursos: Formaciones --------
-    @GetMapping("/{id}/formaciones")
-    public List<FormacionAcademica> listFormaciones(@PathVariable Long id) {
-        return formacionRepo.findByDocente_Id(id);
-    }
-
-    @PostMapping("/{id}/formaciones")
-    public ResponseEntity<FormacionAcademica> addFormacion(@PathVariable Long id, @RequestBody FormacionAcademica f) {
-        DocentePerfil d = docenteRepo.findById(id).orElseThrow();
-        f.setDocente(d);
-        return ResponseEntity.ok(formacionRepo.save(f));
-    }
-
-    @DeleteMapping("/formaciones/{formacionId}")
-    public ResponseEntity<Void> deleteFormacion(@PathVariable Long formacionId) {
-        formacionRepo.deleteById(formacionId);
-        return ResponseEntity.noContent().build();
-    }
-
-    // -------- Subrecursos: Experiencias --------
-    @GetMapping("/{id}/experiencias")
-    public List<ExperienciaProfesional> listExperiencias(@PathVariable Long id) {
-        return experienciaRepo.findByDocente_Id(id);
-    }
-
-    @PostMapping("/{id}/experiencias")
-    public ResponseEntity<ExperienciaProfesional> addExperiencia(@PathVariable Long id, @RequestBody ExperienciaProfesional x) {
-        DocentePerfil d = docenteRepo.findById(id).orElseThrow();
-        x.setDocente(d);
-        return ResponseEntity.ok(experienciaRepo.save(x));
-    }
-
-    @DeleteMapping("/experiencias/{experienciaId}")
-    public ResponseEntity<Void> deleteExperiencia(@PathVariable Long experienciaId) {
-        experienciaRepo.deleteById(experienciaId);
-        return ResponseEntity.noContent().build();
-    }
-
-    // -------- Subrecursos: Reconocimientos --------
-    @GetMapping("/{id}/reconocimientos")
-    public List<Reconocimiento> listReconocimientos(@PathVariable Long id) {
-        return reconocimientoRepo.findByDocente_Id(id);
-    }
-
-    @PostMapping("/{id}/reconocimientos")
-    public ResponseEntity<Reconocimiento> addReconocimiento(@PathVariable Long id, @RequestBody Reconocimiento r) {
-        DocentePerfil d = docenteRepo.findById(id).orElseThrow();
-        r.setDocente(d);
-        return ResponseEntity.ok(reconocimientoRepo.save(r));
-    }
-
-    @DeleteMapping("/reconocimientos/{reconocimientoId}")
-    public ResponseEntity<Void> deleteReconocimiento(@PathVariable Long reconocimientoId) {
-        reconocimientoRepo.deleteById(reconocimientoId);
-        return ResponseEntity.noContent().build();
+        List<Alumno> alumnos = alumnoRepositorio.findByDocente(docente);
+        return ResponseEntity.ok(alumnos);
     }
 }

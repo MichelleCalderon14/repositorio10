@@ -1,40 +1,54 @@
 package com.mateo.colegio.Controladores;
 
+import com.mateo.colegio.Entidades.Alumno;
 import com.mateo.colegio.Entidades.Nota;
-import com.mateo.colegio.Servcios.NotaServicio;
+import com.mateo.colegio.Repositorios.AlumnoRepositorio;
+import com.mateo.colegio.Repositorios.NotaRepositorio;
+import com.mateo.colegio.Entidades.Docente;
+import com.mateo.colegio.docentes.DocenteRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import java.util.*;
+
+import java.util.List;
 
 @RestController
-@RequestMapping("/api/notas")
+@RequestMapping("/api")
 @RequiredArgsConstructor
 public class NotaControlador {
-    private final NotaServicio servicio;
 
-    @GetMapping
-    public List<Nota> listar(){ return servicio.listar(); }
+    private final NotaRepositorio notaRepo;
+    private final AlumnoRepositorio alumnoRepo;
+    private final DocenteRepository docenteRepo;
 
-    @GetMapping("/{id}")
-    public ResponseEntity<Nota> porId(@PathVariable Integer id){
-        return servicio.porId(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
+    // === Registrar nota de un alumno con un docente ===
+    @PostMapping("/docentes/{idDocente}/alumnos/{idAlumno}/notas")
+    public ResponseEntity<Nota> crearNota(
+            @PathVariable("idDocente") Integer idDocente,
+            @PathVariable("idAlumno") Integer idAlumno,
+            @RequestBody Nota body
+    ) {
+
+        Alumno alumno = alumnoRepo.findById(idAlumno)
+                .orElseThrow(() -> new RuntimeException("Alumno no encontrado"));
+
+        Docente docente = docenteRepo.findById(idDocente)
+                .orElseThrow(() -> new RuntimeException("Docente no encontrado"));
+
+        body.setAlumno(alumno);
+        body.setDocente(docente);
+
+        Nota guardada = notaRepo.save(body);
+        return ResponseEntity.ok(guardada);
     }
 
-    @PostMapping
-    public ResponseEntity<Nota> crear(@RequestBody Nota e){
-        return ResponseEntity.ok(servicio.guardar(e));
-    }
-
-    @PutMapping("/{id}")
-    public ResponseEntity<Nota> actualizar(@PathVariable Integer id, @RequestBody Nota e){
-        e.setId_nota(id);
-        return ResponseEntity.ok(servicio.guardar(e));
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminar(@PathVariable Integer id){
-        servicio.eliminar(id);
-        return ResponseEntity.noContent().build();
+    // === Obtener notas de un alumno con un docente ===
+    @GetMapping("/docentes/{idDocente}/alumnos/{idAlumno}/notas")
+    public ResponseEntity<List<Nota>> listarNotasAlumnoDocente(
+            @PathVariable("idDocente") Integer idDocente,
+            @PathVariable("idAlumno") Integer idAlumno
+    ) {
+        List<Nota> notas = notaRepo.findByDocenteAndAlumno(idDocente, idAlumno);
+        return ResponseEntity.ok(notas);
     }
 }
